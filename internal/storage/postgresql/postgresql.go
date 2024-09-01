@@ -9,11 +9,11 @@ import (
 
 	"github.com/Seven11Eleven/meeting_room_booking_system/internal/config"
 	"github.com/Seven11Eleven/meeting_room_booking_system/internal/domain/models"
-	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type Storage struct {
-	db *pgx.Conn
+	db *pgxpool.Pool
 }
 
 // DeleteReservation implements models.ReservationRepository.
@@ -60,11 +60,6 @@ func (s *Storage) Create(ctx context.Context, reservation *models.Reservation) e
 	return nil
 }
 
-// GetByID implements models.ReservationRepository.
-func (s *Storage) GetByID(ctx context.Context, id int) (*models.Reservation, error) {
-	panic("unimplemented")
-}
-
 // GetByRoomID implements models.ReservationRepository.
 func (s *Storage) GetByRoomID(ctx context.Context, roomID string) (*models.RoomReservations, error) {
 	query := `
@@ -74,7 +69,6 @@ func (s *Storage) GetByRoomID(ctx context.Context, roomID string) (*models.RoomR
 				reservations
 		WHERE 
 				room_id = $1
-
 	`
 
 	rows, err := s.db.Query(ctx, query, roomID)
@@ -84,7 +78,7 @@ func (s *Storage) GetByRoomID(ctx context.Context, roomID string) (*models.RoomR
 	defer rows.Close()
 
 	reservations := &models.RoomReservations{
-		RoomID: roomID,
+		RoomID:       roomID,
 		Reservations: []models.TimeSlot{},
 	}
 	for rows.Next() {
@@ -97,7 +91,7 @@ func (s *Storage) GetByRoomID(ctx context.Context, roomID string) (*models.RoomR
 		reservations.Reservations = append(reservations.Reservations, reservation)
 	}
 
-	if err = rows.Err(); err != nil{
+	if err = rows.Err(); err != nil {
 		return nil, err
 	}
 
@@ -117,7 +111,7 @@ func (s *Storage) IsReserved(ctx context.Context, roomID string, startTime time.
 		(
 			(start_time < $3 AND end_time > $2)
 		)
-`
+	`
 
 	var cnt int
 	err := s.db.QueryRow(ctx, query, roomID, startTime, endTime).Scan(&cnt)
@@ -128,45 +122,38 @@ func (s *Storage) IsReserved(ctx context.Context, roomID string, startTime time.
 	return cnt > 0, nil
 }
 
-// Update implements models.ReservationRepository.
-func (s *Storage) Update(ctx context.Context, id int, startTime time.Time, endTime time.Time) (*models.Reservation, error) {
-	panic("unimplemented")
-}
-
-func NewStorage(db *pgx.Conn) models.ReservationStorage {
+func NewStorage(db *pgxpool.Pool) models.ReservationStorage {
 	return &Storage{
 		db: db,
 	}
 }
-
-func NewConn(env *config.Config) *pgx.Conn {
+func NewPool(env *config.Config) *pgxpool.Pool {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	dbURL := fmt.Sprintf("postgresql://%s:%s@%s:%s/%s", env.DBUser, env.DBPass, env.DBHost, env.DBPort, env.DBName)
 
-	conn, err := pgx.Connect(ctx, dbURL)
+	config, err := pgxpool.ParseConfig(dbURL)
 	if err != nil {
-		log.Fatalf("unable to connect to the database: %v", err)
+		log.Fatalf("Unable to parse database URL: %v", err)
 	}
 
-	err = conn.Ping(ctx)
+	config.MaxConns = 10
+
+	pool, err := pgxpool.NewWithConfig(ctx, config)
 	if err != nil {
-		log.Fatalf("cannot ping database: %v", err)
+		log.Fatalf("Unable to create connection pool: %v", err)
 	}
 
-	return conn
+	return pool
 }
 
-func Stop(conn *pgx.Conn) error {
-	if conn == nil {
+func Stop(pool *pgxpool.Pool) error {
+	if pool == nil {
 		return errors.New("not connected")
 	}
 
-	err := conn.Close(context.Background())
-	if err != nil {
-		log.Fatalf("error closing database connection: %v", err)
-	}
-	log.Println("connection to the database is closed")
+	pool.Close()
+	log.Println("connection pool to the database is closed")
 	return nil
 }

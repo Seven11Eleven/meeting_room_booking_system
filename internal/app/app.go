@@ -11,12 +11,12 @@ import (
 	"github.com/Seven11Eleven/meeting_room_booking_system/internal/config"
 	"github.com/Seven11Eleven/meeting_room_booking_system/internal/storage/postgresql"
 	"github.com/go-chi/chi/v5"
-	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type App struct {
 	Router *chi.Mux
-	DB     *pgx.Conn
+	DB     *pgxpool.Pool
 	Env    *config.Config
 }
 
@@ -25,7 +25,7 @@ func NewApp( ctx context.Context ) (*App, error){
 	env := config.MustLoad()
 
 
-	db := postgresql.NewConn(env)
+	db := postgresql.NewPool(env)
 	if db == nil{
 		return nil, fmt.Errorf("failed to establish db conn")
 	}
@@ -55,8 +55,6 @@ func (a *App) Run() error {
 	log.Printf("Starting server on %s", server.Addr)
 	return server.ListenAndServe()
 }
-
-// Close закрывает соединение с базой данных
 func (a *App) Close() {
 	if err := postgresql.Stop(a.DB); err != nil {
 		log.Printf("Error closing the database connection: %v", err)

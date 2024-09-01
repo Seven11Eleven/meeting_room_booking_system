@@ -8,10 +8,10 @@ import (
 	"github.com/Seven11Eleven/meeting_room_booking_system/internal/services"
 	"github.com/Seven11Eleven/meeting_room_booking_system/internal/storage/postgresql"
 	"github.com/go-chi/chi/v5"
-	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func SetupRoutes(r *chi.Mux, timeout time.Duration, db *pgx.Conn) http.Handler {
+func SetupRoutes(r *chi.Mux, timeout time.Duration, db *pgxpool.Pool) http.Handler {
 	
 
 	reservationStorage := postgresql.NewStorage(db)

@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"github.com/Seven11Eleven/meeting_room_booking_system/internal/domain/models"
@@ -10,6 +11,8 @@ import (
 type reservationService struct {
 	reservationStorage models.ReservationStorage
 	contextTimeout     time.Duration
+	mutexes            map[string]*sync.Mutex
+	globalMutex        sync.Mutex
 }
 
 func TimeValidator(timeStart, timeEnd time.Time) error {
@@ -34,6 +37,13 @@ func (r *reservationService) Create(ctx context.Context, reservation *models.Res
 	if err != nil {
 		return err
 	}
+
+	roomMutex := r.getRoomMutex(reservation.RoomID)
+
+	roomMutex.Lock()
+
+	defer roomMutex.Unlock()
+
 
 	isReserved, err := r.reservationStorage.IsReserved(ctx, reservation.RoomID, reservation.StartTime, reservation.EndTime)
 	if err != nil {
@@ -71,10 +81,22 @@ func NewReservationService(reservationStorage models.ReservationStorage, timeout
 	return &reservationService{
 		reservationStorage: reservationStorage,
 		contextTimeout:     timeout,
+		mutexes: make(map[string]*sync.Mutex),
 	}
 }
 
 
 
 
+func (r *reservationService) getRoomMutex(roomID string) *sync.Mutex {
+	r.globalMutex.Lock()
+	defer r.globalMutex.Unlock()
 
+	if mutex, exists := r.mutexes[roomID]; exists {
+		return mutex
+	}
+
+	mutex := &sync.Mutex{}
+	r.mutexes[roomID] = mutex
+	return mutex
+}
