@@ -1,0 +1,25 @@
+# syntax=docker/dockerfile:1
+
+FROM golang:1.22.1 as builder
+WORKDIR /app
+
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY . .
+
+RUN go build -o test_app ./cmd/app
+
+FROM alpine:latest
+
+RUN apk --no-cache add bash postgresql-client ca-certificates
+
+COPY --from=builder /app/test_app /app/test_app
+
+COPY ../migrations /migrations
+
+ENV DATABASE_USER=testuser
+ENV DATABASE_PASSWORD=testpassword
+ENV DATABASE_NAME=testdb
+ENV DATABASE_HOST=db_test
+ENV DATABASE_PORT=5432
