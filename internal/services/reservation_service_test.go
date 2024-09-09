@@ -343,7 +343,7 @@ func TestReservationServiceGetByRoomID(t *testing.T) {
 		require.NoError(t, err)
 
 		roomID := "421"
-		startTime := time.Date(2024, time.September, 1, 10, 51, 5, 0, time.UTC)
+		startTime := time.Date(2025, time.September, 1, 10, 51, 5, 0, time.UTC)
 		endTime := startTime.Add(1 * time.Hour)
 
 		reservation := &models.Reservation{
